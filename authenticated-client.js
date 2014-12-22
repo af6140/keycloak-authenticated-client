@@ -6,12 +6,11 @@ var http = require('http');
 var URL = require('url');
 var Form = require('./form');
 
-var Application = require('./application');
-
 function AuthenticatedClient(opts) {
 
   this.username = opts.username;
   this.password = opts.password;
+  this.grant    = opts.grant;
 
   if ( opts.config === false ) {
     // assume explicit configure() called by user
@@ -42,13 +41,15 @@ AuthenticatedClient.prototype.configure = function(config) {
 
   this.realmUrl      = this.authServerUrl + '/realms/' + this.realm;
   this.realmAdminUrl = this.authServerUrl + '/admin/realms/' + this.realm;
-
-  this.grant = undefined;
 }
 
 AuthenticatedClient.prototype.ensureGrant = function(callback) {
   if ( ! this.grant ) {
-    return this.obtainGrantDirectly();
+    return this.obtainGrantDirectly()
+      .then( function(grant) {
+        this.grant = grant;
+        return grant;
+      }.bind(this))
   }
 
   return Q(this.grant);
@@ -82,13 +83,20 @@ AuthenticatedClient.prototype.obtainGrantDirectly = function(callback) {
   }
 
   var req = http.request( options, function(response) {
+    if ( response.statusCode < 200 || response.statusCode > 299 ) {
+      return deferred.reject( response.statusCode + ':' + http.STATUS_CODES[ response.statusCode ] );
+    }
     var json = '';
     response.on('data', function(d) {
       json += d.toString();
     })
     response.on( 'end', function() {
-      self.grant = JSON.parse( json );
-      deferred.resolve();
+      try {
+        var grant = JSON.parse( json );
+        deferred.resolve(grant);
+      } catch (err) {
+        deferred.reject( err );
+      }
     })
   })
 
@@ -128,7 +136,6 @@ AuthenticatedClient.prototype._doRequest = function(opts, setup, callback) {
     requestOpts.headers['Content-Type'] = 'application/json';
   }
 
-  console.log( "REQUEST", requestOpts );
   var request = http.request( requestOpts, function(response) {
     if ( opts.type == 'json' ) {
       var body = '';
@@ -158,8 +165,6 @@ AuthenticatedClient.prototype._doRequest = function(opts, setup, callback) {
   request.on( 'error', function(err) {
     deferred.reject( err );
   })
-
-  console.log( "SETUP", setup );
 
   if ( typeof setup == 'function' ) {
     setup(request);

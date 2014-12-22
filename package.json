@@ -1,8 +1,8 @@
 {
   "name": "keycloak-client",
   "version": "0.0.1",
-  "description": "Keycloak Client",
-  "main": "keycloak-client.js",
+  "description": "General Keycloak-Authenticating Client",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
