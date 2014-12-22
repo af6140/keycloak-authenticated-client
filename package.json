@@ -4,11 +4,11 @@
   "description": "General Keycloak-Authenticating Client",
   "main": "index.js",
   "scripts": {
-    "test": "node_modules/jasmine/bin/jasmine",
+    "test": "node_modules/jasmine/bin/jasmine.js",
     "build": "node_modules/grunt-cli/bin/grunt"
   },
   "author": "",
-  "license": "ISC",
+  "license": "AL2",
   "devDependencies": {
     "jasmine": "^2.1.1",
     "grunt": "^0.4.5",
