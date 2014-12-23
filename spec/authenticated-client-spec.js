@@ -19,7 +19,7 @@ describe( "authenticated client", function() {
     })
   })
 
-  it( 'should allow obtainig a grant with a promise', function(done) {
+  it( 'should allow obtaining a grant with a promise', function(done) {
     client.obtainGrantDirectly()
       .then( function(grant) {
         expect( grant ).not.toBe( undefined );
@@ -46,6 +46,27 @@ describe( "authenticated client", function() {
 
   it( 'should be able to use a provided grant', function(done) {
     client.obtainGrantDirectly()
+      .then( function(grant) {
+        var newClient = new AuthenticatedClient( { grant: grant } );
+        newClient.request( 'http://localhost:8080/auth/admin/realms/example-realm/applications' )
+          .done( function( response ) {
+            var json = '';
+            response.on( 'data', function(d) {
+              json += d.toString();
+            })
+            response.on( 'end', function() {
+              var data = JSON.parse( json );
+              expect( data.length ).toBeGreaterThan( 0 );
+              expect( data[0].name ).not.toBe(undefined);
+              done();
+            })
+          })
+      })
+  })
+
+  it( 'should be able to use a provided grant, refreshing if necessary', function(done) {
+    client.obtainGrantDirectly()
+      .delay(4000)
       .then( function(grant) {
         var newClient = new AuthenticatedClient( { grant: grant } );
         newClient.request( 'http://localhost:8080/auth/admin/realms/example-realm/applications' )

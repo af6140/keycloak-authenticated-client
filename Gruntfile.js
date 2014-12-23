@@ -6,7 +6,7 @@ module.exports = function(grunt) {
     pkg: grunt.file.readJSON('package.json'),
     docco: {
       debug: {
-        src: ['index.js'],
+        src: ['index.js' ],
         options: {
           output: 'doc/',
           layout: 'classic'
@@ -14,7 +14,7 @@ module.exports = function(grunt) {
       }
     },
     jshint: {
-      all: ['Gruntfile.js', 'index.js', 'test/**/*.js']
+      all: ['Gruntfile.js', '*.js', 'test/**/*.js']
     }
   });
 

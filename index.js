@@ -39,7 +39,10 @@ var Q = require('q');
 var fs = require('fs');
 var http = require('http');
 var URL = require('url');
-var Form = require('./form');
+
+var Config       = require('keycloak-auth-utils').Config;
+var GrantManager = require('keycloak-auth-utils').GrantManager;
+var Form         = require('keycloak-auth-utils').Form;
 
 // # Construct and configure.
 
@@ -59,30 +62,12 @@ function AuthenticatedClient(opts) {
     return;
   }
 
-  var path = opts.config;
-  if ( ! path ) {
-    path = process.cwd() + '/keycloak.json';
-  }
-  this.loadConfig(path);
+  this.configure( opts.config );
 }
 
-AuthenticatedClient.prototype.loadConfig = function(path) {
-  var json = fs.readFileSync( path );
-  var config = JSON.parse( json );
-
-  this.configure( config );
-};
-
 AuthenticatedClient.prototype.configure = function(config) {
-  this.authServerUrl  = config['auth-server-url']            || config.authServerUrl;
-  this.realm          = config['realm']                      || config.realm;
-  this.clientId       = config['resource']                   || config.clientId;
-  this.secret         = (config['credentials'] || {}).secret || config.secret;
-
-  this.public         = config['public-client'] || config.public || false;
-
-  this.realmUrl      = this.authServerUrl + '/realms/' + this.realm;
-  this.realmAdminUrl = this.authServerUrl + '/admin/realms/' + this.realm;
+  this.config = new Config( config );
+  this.grantManager = new GrantManager( this.config );
 };
 
 AuthenticatedClient.prototype.ensureGrant = function(callback) {
@@ -91,61 +76,19 @@ AuthenticatedClient.prototype.ensureGrant = function(callback) {
       .then( function(grant) {
         this.grant = grant;
         return grant;
-      }.bind(this));
+      }.bind(this))
+      .nodeify(callback);
   }
 
-  return Q(this.grant);
+  return this.ensureFreshness( this.grant, callback );
+};
+
+AuthenticatedClient.prototype.ensureFreshness = function(grant, callback) {
+  return this.grantManager.ensureFreshness( grant, callback );
 };
 
 AuthenticatedClient.prototype.obtainGrantDirectly = function(callback) {
-
-  var deferred = Q.defer();
-
-  var self = this;
-
-  var url = this.realmUrl + '/tokens/grants/access';
-
-  var options = URL.parse( url );
-
-  options.method = 'POST';
-  options.headers = {
-    'Content-Type': 'application/x-www-form-urlencoded',
-  };
-
-  var params = new Form( {
-    username: this.username,
-    password: this.password,
-    client_id: this.clientId,
-  });
-
-  if ( this.public ) {
-    params.set( 'client_id', this.clientId );
-  } else {
-    options.headers['Authorization'] = 'Basic ' + new Buffer( this.clientId + ':' + this.secret ).toString( 'base64' );
-  }
-
-  var req = http.request( options, function(response) {
-    if ( response.statusCode < 200 || response.statusCode > 299 ) {
-      return deferred.reject( response.statusCode + ':' + http.STATUS_CODES[ response.statusCode ] );
-    }
-    var json = '';
-    response.on('data', function(d) {
-      json += d.toString();
-    });
-    response.on( 'end', function() {
-      try {
-        var grant = JSON.parse( json );
-        deferred.resolve(grant);
-      } catch (err) {
-        deferred.reject( err );
-      }
-    });
-  });
-
-  req.write( params.encode() );
-  req.end();
-
-  return deferred.promise.nodeify( callback );
+  return this.grantManager.obtainDirectly( this.username, this.password, callback );
 };
 
 AuthenticatedClient.prototype.request = function(opts, setup, callback) {
